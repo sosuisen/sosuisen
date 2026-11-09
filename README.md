@@ -1,2 +1,1 @@
-
-![Languages](./metrics.plugin.languages.svg)
+![Languages](./languages.svg)
