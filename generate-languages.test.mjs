@@ -62,7 +62,7 @@ for (const includePrivate of ["false", "true"]) {
       assert.equal(result.status, 0, result.stderr);
       assert.match(result.stdout, /Repositories: 2/);
       const svg = await readFile(output, "utf8");
-      const visibility = includePrivate === "true" ? "accessible repositories" : "public repositories";
+      const visibility = includePrivate === "true" ? "public and private repositories" : "public repositories";
       assert.ok(svg.includes(`Languages: sosuisen + petajournal (${visibility})`));
       assert.match(svg, /Python<\/text>.*75\.0%/);
       assert.match(svg, /JavaScript<\/text>.*25\.0%/);

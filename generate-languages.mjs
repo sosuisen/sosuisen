@@ -95,7 +95,7 @@ function renderSvg(items) {
   const width = 480;
   const pad = 20;
   const owners = [user, ...orgs].join(" + ");
-  const visibility = includePrivate ? "accessible repositories" : "public repositories";
+  const visibility = includePrivate ? "public and private repositories" : "public repositories";
   const title = `Languages: ${owners} (${visibility})`;
   const barY = 48;
   const barWidth = width - pad * 2;
