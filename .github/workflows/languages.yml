@@ -21,7 +21,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.METRICS_TOKEN }}
           GH_ORGS: "petajournal"
-          INCLUDE_PRIVATE: "false"
+          INCLUDE_PRIVATE: "true"
           IGNORED_LANGUAGES: "HTML,CSS"
           SKIPPED_REPOS: "javafx-builder-api"
           LIMIT: "8"
