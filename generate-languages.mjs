@@ -4,7 +4,8 @@
 // Environment variables:
 //   GH_TOKEN          GitHub token (required)
 //   GH_USER           GitHub username (default: owner of the current repository)
-//   INCLUDE_PRIVATE   "true" to include private repositories (needs a classic PAT with "repo" scope)
+//   GH_ORGS           Comma-separated list of organizations to include
+//   INCLUDE_PRIVATE   "true" to include private repositories accessible to the token
 //   IGNORED_LANGUAGES Comma-separated list of languages to ignore (e.g. "HTML,CSS")
 //   SKIPPED_REPOS     Comma-separated list of repository names to skip
 //   LIMIT             Max number of languages to show (default: 8). The rest go into "Other".
@@ -16,6 +17,7 @@ const token = process.env.GH_TOKEN;
 const user = process.env.GH_USER || process.env.GITHUB_REPOSITORY_OWNER;
 const includePrivate = process.env.INCLUDE_PRIVATE === "true";
 const toList = (s) => (s || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+const orgs = [...new Set(toList(process.env.GH_ORGS))];
 const ignored = new Set(toList(process.env.IGNORED_LANGUAGES));
 const skipped = new Set(toList(process.env.SKIPPED_REPOS));
 const limit = Number(process.env.LIMIT || 8);
@@ -38,18 +40,29 @@ async function api(path) {
   return res.json();
 }
 
-// Fetch all repositories owned by the user, page by page.
+// Fetch the user's and configured organizations' repositories, page by page.
 async function fetchRepos() {
   const repos = [];
-  for (let page = 1; ; page++) {
-    const path = includePrivate
-      ? `/user/repos?affiliation=owner&per_page=100&page=${page}`
-      : `/users/${user}/repos?type=owner&per_page=100&page=${page}`;
-    const batch = await api(path);
-    repos.push(...batch);
-    if (batch.length < 100) break;
+  const paths = [
+    includePrivate
+      ? "/user/repos?affiliation=owner"
+      : `/users/${encodeURIComponent(user)}/repos?type=owner`,
+    ...orgs.map((org) => `/orgs/${encodeURIComponent(org)}/repos?type=${includePrivate ? "all" : "public"}`),
+  ];
+  for (const path of paths) {
+    for (let page = 1; ; page++) {
+      const batch = await api(`${path}&per_page=100&page=${page}`);
+      repos.push(...batch);
+      if (batch.length < 100) break;
+    }
   }
-  return repos.filter((r) => !r.fork && !skipped.has(r.name.toLowerCase()));
+  const seen = new Set();
+  return repos.filter((r) => {
+    const key = `${r.owner.login}/${r.name}`.toLowerCase();
+    if (r.fork || skipped.has(r.name.toLowerCase()) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // Sum language bytes across all repositories.
@@ -81,6 +94,9 @@ const escapeXml = (s) =>
 function renderSvg(items) {
   const width = 480;
   const pad = 20;
+  const owners = [user, ...orgs].join(" + ");
+  const visibility = includePrivate ? "accessible repositories" : "public repositories";
+  const title = `Languages: ${owners} (${visibility})`;
   const barY = 48;
   const barWidth = width - pad * 2;
   const rowHeight = 22;
@@ -114,14 +130,14 @@ function renderSvg(items) {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
 <style>
-  .title { font: 600 16px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0969da; }
+  .title { font: 600 14px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0969da; }
   .name { font: 13px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #57606a; }
   .pct { font: 13px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #8c959f; }
   @media (prefers-color-scheme: dark) {
     .title { fill: #4493f8; } .name { fill: #c9d1d9; } .pct { fill: #8b949e; }
   }
 </style>
-<text x="${pad}" y="30" class="title">Most used languages</text>
+<text x="${pad}" y="30" class="title">${escapeXml(title)}</text>
 <clipPath id="round"><rect x="${pad}" y="${barY}" width="${barWidth}" height="10" rx="5"/></clipPath>
 <g clip-path="url(#round)">${bar}</g>
 ${legend}
